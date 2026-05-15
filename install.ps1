@@ -2,17 +2,22 @@
 #
 # 使い方（購入者がClaude Codeチャットに貼り付け）:
 #
-#   以下のURLからAI経営者のインストーラーを取得して実行してください。
-#   実行前に環境変数 GITHUB_PAT に購入時にお伝えしたトークンを設定してください。
+#   以下のURLからAI経営者プラグインのインストールスクリプトを取得して、
+#   内容を確認してから実行してください:
 #   https://raw.githubusercontent.com/joshicrea/ai-keieisha-installer/master/install.ps1
 #
 # やること:
-#   1. GitHub Personal Access Token (PAT) を環境変数から取得
-#   2. PRIVATE リポジトリ (joshicrea/ai-keieisha) から最新コミットを取得
-#   3. ZIPをダウンロードして展開・プラグインキャッシュにコピー
-#   4. installed_plugins.json / settings.json を更新
-#   5. プレースホルダー（{{KEIEISHA_PLUGIN_ROOT}} / {{KEIEISHA_BASE_DIR}}）を実パスに置換
-#   6. ユーザーデータディレクトリを作成
+#   1. GitHub CLI (gh) を確認、未インストールなら winget で導入
+#   2. gh auth status を確認、未認証ならブラウザでGitHubログイン（gh auth login --web）
+#   3. gh auth token で取得した一時トークンで PRIVATE リポジトリ (joshicrea/ai-keieisha) を取得
+#   4. ZIPをダウンロードして展開・プラグインキャッシュにコピー
+#   5. installed_plugins.json / settings.json を更新
+#   6. プレースホルダー（{{KEIEISHA_PLUGIN_ROOT}} / {{KEIEISHA_BASE_DIR}}）を実パスに置換
+#   7. ユーザーデータディレクトリを作成
+#
+# 認証方式: 販売者がGitHubで購入者のメアドをコラボレーターに追加済み。
+# 購入者は自分のGitHubアカウントでログイン（gh auth login --web）するだけでアクセス可能。
+# PAT発行は不要。
 
 $ErrorActionPreference = "Continue"
 $ProgressPreference    = "SilentlyContinue"
@@ -27,17 +32,45 @@ function Write-Utf8NoBom {
     [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
 }
 
-# --- PAT 取得 ---
-$Pat = $env:GITHUB_PAT
+function Update-EnvPath {
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                [System.Environment]::GetEnvironmentVariable("Path", "User")
+}
+
+# --- GitHub CLI (gh) の確認・インストール ---
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+    Write-Host "GitHub CLI (gh) をインストールしています..." -ForegroundColor Yellow
+    winget install --id GitHub.cli --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+    Update-EnvPath
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        Write-Host "エラー: GitHub CLI のインストールに失敗しました。" -ForegroundColor Red
+        Write-Host "https://cli.github.com/ から手動でインストールしてください。"
+        exit 1
+    }
+    Write-Host "[OK] GitHub CLI インストール完了" -ForegroundColor Green
+}
+
+# --- GitHub 認証確認 ---
+gh auth status 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "GitHubへのログインが必要です。" -ForegroundColor Yellow
+    Write-Host "次の手順で進めてください:"
+    Write-Host "  1. このあと表示される8桁のコードをコピー"
+    Write-Host "  2. 自動で開くブラウザでコードを貼り付け"
+    Write-Host "  3. 「Authorize github」をクリック"
+    Write-Host ""
+    gh auth login --web --git-protocol https --hostname github.com
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "エラー: GitHub認証に失敗しました。" -ForegroundColor Red
+        exit 1
+    }
+}
+
+# --- トークンを取得（gh が保持しているもの・PATではない） ---
+$Pat = (gh auth token).Trim()
 if (-not $Pat) {
-    Write-Host "エラー: GitHub Personal Access Token が設定されていません。" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Claude Code のチャットに以下のように貼り付けて再実行してください:"
-    Write-Host ""
-    Write-Host "  以下のURLからAI経営者のインストーラーを取得して実行してください。"
-    Write-Host "  実行前に環境変数 GITHUB_PAT に購入時にお伝えしたトークンを設定してください。"
-    Write-Host "  https://raw.githubusercontent.com/joshicrea/ai-keieisha-installer/master/install.ps1"
-    Write-Host ""
+    Write-Host "エラー: gh auth token の取得に失敗しました。" -ForegroundColor Red
     exit 1
 }
 
@@ -78,7 +111,8 @@ try {
     $ShortSha   = $FullSha.Substring(0, 12)
 } catch {
     Write-Host "GitHubへの接続に失敗しました: $_" -ForegroundColor Red
-    Write-Host "Personal Access Token が正しいか、リポジトリへのアクセス権があるか確認してください。"
+    Write-Host "GitHubアカウントが joshicrea/ai-keieisha のコラボレーターに招待されているか確認してください。"
+    Write-Host "招待メールが届いている場合は GitHub上で承認してから再実行してください。"
     exit 1
 }
 
@@ -242,5 +276,3 @@ Write-Host "  2. Claude Code を再度開く"
 Write-Host "  3. チャットに「はじめまして」と送るとセットアップが始まります"
 Write-Host "     （AI秘書セットアップ済みなら呼び名・事業内容が自動引き継ぎされます）"
 Write-Host ""
-
-$env:GITHUB_PAT = $null

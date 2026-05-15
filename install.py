@@ -2,10 +2,12 @@
 # AI経営者プラグイン インストールスクリプト（Mac / Linux用）
 # 使い方: ターミナルに以下をそのままコピペしてください
 #
-#   export GITHUB_PAT=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 #   curl -fsSL https://raw.githubusercontent.com/joshicrea/ai-keieisha-installer/master/install.py | python3
 #
-import sys, os, json, urllib.request, zipfile, shutil, tempfile, pathlib, datetime, re
+# 認証方式: 販売者がGitHubで購入者のメアドをコラボレーターに追加済み。
+# 購入者は自分のGitHubアカウントでログイン（gh auth login --web）するだけでアクセス可能。
+# PAT発行は不要。
+import sys, os, json, urllib.request, zipfile, shutil, tempfile, pathlib, datetime, re, subprocess, platform
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -13,16 +15,50 @@ print()
 print("AI経営者プラグインをインストールしています...")
 print()
 
-# --- PAT取得 ---
-PAT = os.environ.get("GITHUB_PAT")
+def cmd_exists(name):
+    return shutil.which(name) is not None
+
+# --- GitHub CLI (gh) の確認・インストール ---
+if not cmd_exists("gh"):
+    print("GitHub CLI (gh) をインストールしています...")
+    system = platform.system()
+    if system == "Darwin":
+        if not cmd_exists("brew"):
+            print("エラー: Homebrew が見つかりません。https://brew.sh からインストールしてください。")
+            sys.exit(1)
+        subprocess.run(["brew", "install", "gh"], check=False)
+    elif system == "Linux":
+        # Debian/Ubuntu系想定
+        print("Linux環境では gh の手動インストールが必要です。")
+        print("https://github.com/cli/cli/blob/trunk/docs/install_linux.md を参照してください。")
+        sys.exit(1)
+    else:
+        print(f"エラー: 未対応のOS: {system}")
+        sys.exit(1)
+    if not cmd_exists("gh"):
+        print("エラー: GitHub CLI のインストールに失敗しました。")
+        sys.exit(1)
+    print("[OK] GitHub CLI インストール完了")
+
+# --- GitHub 認証確認 ---
+auth_status = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True)
+if auth_status.returncode != 0:
+    print()
+    print("GitHubへのログインが必要です。")
+    print("次の手順で進めてください:")
+    print("  1. このあと表示される8桁のコードをコピー")
+    print("  2. 自動で開くブラウザでコードを貼り付け")
+    print("  3. 「Authorize github」をクリック")
+    print()
+    result = subprocess.run(["gh", "auth", "login", "--web", "--git-protocol", "https", "--hostname", "github.com"])
+    if result.returncode != 0:
+        print("エラー: GitHub認証に失敗しました。")
+        sys.exit(1)
+
+# --- トークンを取得（ghが保持しているもの・PATではない） ---
+PAT = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True).stdout.strip()
 if not PAT:
-    print("エラー: 環境変数 GITHUB_PAT が設定されていません。")
-    print()
-    print("ターミナルで以下を実行してから再度貼り付けてください:")
-    print()
-    print("  export GITHUB_PAT=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  # 購入時にお伝えしたトークン")
-    print("  curl -fsSL https://raw.githubusercontent.com/joshicrea/ai-keieisha-installer/master/install.py | python3")
-    print()
+    print("エラー: gh auth token の取得に失敗しました。")
     sys.exit(1)
 
 # --- パス設定 ---
@@ -53,7 +89,8 @@ try:
     short_sha = full_sha[:12]
 except Exception as e:
     print(f"GitHubへの接続に失敗しました: {e}")
-    print("Personal Access Token が正しいか、リポジトリへのアクセス権があるか確認してください。")
+    print("GitHubアカウントが joshicrea/ai-keieisha のコラボレーターに招待されているか確認してください。")
+    print("招待メールが届いている場合は GitHub上で承認してから再実行してください。")
     sys.exit(1)
 
 INSTALL_PATH = CACHE_DIR / short_sha
@@ -198,6 +235,3 @@ print("  2. Claude Code を再度開く")
 print("  3. チャットに「はじめまして」と送るとセットアップが始まります")
 print("     （AI秘書セットアップ済みなら呼び名・事業内容が自動引き継ぎされます）")
 print()
-
-# PATを環境変数から消去（プロセス内のみ）
-os.environ.pop("GITHUB_PAT", None)
