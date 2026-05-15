@@ -145,6 +145,13 @@ for root, _, files in os.walk(INSTALL_PATH):
             fp.write_text(new, encoding="utf-8")
 print("  プレースホルダー置換完了")
 
+# --- Unix: hooks/session-start に実行権を付与 ---
+import stat
+hook_script = INSTALL_PATH / "hooks" / "session-start"
+if hook_script.exists():
+    st = hook_script.stat()
+    hook_script.chmod(st.st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+
 # --- ユーザーデータ準備 ---
 print()
 print("[4/4] ユーザーデータ領域を準備...")
