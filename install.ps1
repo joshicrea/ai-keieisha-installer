@@ -18,6 +18,12 @@
 $ErrorActionPreference = "Continue"
 $ProgressPreference    = "SilentlyContinue"
 
+# TLS 1.2 enforcement for old Windows 10 / PS 5.1 default issues
+# GitHub API requires TLS 1.2 or higher; PS 5.1 sometimes defaults to TLS 1.0/1.1
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+} catch {}
+
 Write-Host ""
 Write-Host "AI経営者プラグインをインストールしています..." -ForegroundColor Cyan
 Write-Host ""
@@ -35,7 +41,17 @@ function Update-EnvPath {
 
 # --- GitHub CLI gh check / install ---
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-    Write-Host "GitHub CLI (gh) をインストールしています..." -ForegroundColor Yellow
+    Write-Host "GitHub CLI をインストールしています..." -ForegroundColor Yellow
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Host ""
+        Write-Host "エラー: winget が見つかりません（Windows 10 旧版では未搭載）。" -ForegroundColor Red
+        Write-Host "以下のいずれかをお試しください:"
+        Write-Host "  方法A: Microsoft Storeで「アプリ インストーラー」を更新してから本コマンドを再実行"
+        Write-Host "         https://www.microsoft.com/p/app-installer/9nblggh4nns1"
+        Write-Host "  方法B: 手動で GitHub CLI をインストール"
+        Write-Host "         https://cli.github.com/  からダウンロードしてインストール後、本コマンドを再実行"
+        exit 1
+    }
     winget install --id GitHub.cli --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
     Update-EnvPath
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
@@ -135,6 +151,15 @@ if (Test-Path $InstallPath) {
     Remove-Item $ExtTemp -Force -ErrorAction SilentlyContinue
     Remove-Item $ZipPath -Force -ErrorAction SilentlyContinue
     Write-Host "  ダウンロード完了 ($ShortSha)" -ForegroundColor Green
+}
+
+# --- 古いバージョン（最新2世代以外）をクリーンアップ ---
+$existingVersions = Get-ChildItem $CacheDir -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+if ($existingVersions.Count -gt 2) {
+    foreach ($oldVer in $existingVersions | Select-Object -Skip 2) {
+        Write-Host "  古いバージョンを削除: $($oldVer.Name)" -ForegroundColor Gray
+        Remove-Item $oldVer.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # ============================================================

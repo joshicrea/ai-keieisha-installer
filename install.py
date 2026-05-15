@@ -121,6 +121,16 @@ else:
 
     print(f"  ダウンロード完了 ({short_sha})")
 
+# --- 古いバージョン（最新2世代以外）をクリーンアップ ---
+existing = sorted(
+    [d for d in CACHE_DIR.iterdir() if d.is_dir()],
+    key=lambda p: p.stat().st_mtime,
+    reverse=True
+)
+for old_ver in existing[2:]:
+    print(f"  古いバージョンを削除: {old_ver.name}")
+    shutil.rmtree(old_ver, ignore_errors=True)
+
 # --- installed_plugins.json 更新 ---
 print()
 print("[2/4] Claude Code にプラグイン登録...")
