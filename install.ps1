@@ -1,23 +1,19 @@
-﻿# AI経営者 ワンライナーインストーラー (Windows)
+﻿# AI Keieisha installer for Windows
 #
-# 使い方（購入者がClaude Codeチャットに貼り付け）:
+# Usage: paste this into Claude Code or PowerShell:
+#   iwr -useb https://raw.githubusercontent.com/joshicrea/ai-keieisha-installer/master/install.ps1 | iex
 #
-#   以下のURLからAI経営者プラグインのインストールスクリプトを取得して、
-#   内容を確認してから実行してください:
-#   https://raw.githubusercontent.com/joshicrea/ai-keieisha-installer/master/install.ps1
+# What it does:
+#   1. Install GitHub CLI gh via winget if missing
+#   2. Run gh auth login --web if not authenticated
+#   3. Download AI Keieisha private repo via gh auth token
+#   4. Extract to Claude plugin cache
+#   5. Update installed_plugins.json and settings.json
+#   6. Replace placeholders in plugin files
+#   7. Create user data directory
 #
-# やること:
-#   1. GitHub CLI (gh) を確認、未インストールなら winget で導入
-#   2. gh auth status を確認、未認証ならブラウザでGitHubログイン（gh auth login --web）
-#   3. gh auth token で取得した一時トークンで PRIVATE リポジトリ (joshicrea/ai-keieisha) を取得
-#   4. ZIPをダウンロードして展開・プラグインキャッシュにコピー
-#   5. installed_plugins.json / settings.json を更新
-#   6. プレースホルダー（{{KEIEISHA_PLUGIN_ROOT}} / {{KEIEISHA_BASE_DIR}}）を実パスに置換
-#   7. ユーザーデータディレクトリを作成
-#
-# 認証方式: 販売者がGitHubで購入者のメアドをコラボレーターに追加済み。
-# 購入者は自分のGitHubアカウントでログイン（gh auth login --web）するだけでアクセス可能。
-# PAT発行は不要。
+# Auth model: seller adds buyer email as collaborator on private repo.
+# Buyer just authorizes via gh auth login --web. No PAT needed.
 
 $ErrorActionPreference = "Continue"
 $ProgressPreference    = "SilentlyContinue"
@@ -37,7 +33,7 @@ function Update-EnvPath {
                 [System.Environment]::GetEnvironmentVariable("Path", "User")
 }
 
-# --- GitHub CLI (gh) の確認・インストール ---
+# --- GitHub CLI gh check / install ---
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     Write-Host "GitHub CLI (gh) をインストールしています..." -ForegroundColor Yellow
     winget install --id GitHub.cli --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
