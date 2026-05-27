@@ -258,10 +258,41 @@ if (-not (Test-Path $profilePath)) {
 name:
 business:
 setup_date:
+
+## 連携設定
+
+gcal_verified: false
+gmail_verified: false
+custom_email_verified: false
+custom_email_address:
+custom_email_imap:
+chatwork_verified: false
+chatwork_token:
+weather_verified: false
+weather_location:
+weather_lat:
+weather_lon:
 "@
     Write-Utf8NoBom -Path $profilePath -Content $template
 }
 Write-Host "  ユーザーデータ準備完了" -ForegroundColor Green
+
+# --- rules/*.md をユーザーグローバルルールとして配置 ---
+# プラグインキャッシュ内のrules/はClaude Codeに読み込まれない。
+# ~/.claude/rules/ に直接コピーすることで確実にシステムコンテキストに読み込まれる。
+$RulesDir       = [IO.Path]::Combine($ClaudeDir, "rules")
+$SourceRulesDir = [IO.Path]::Combine($InstallPath, "rules")
+New-Item -ItemType Directory -Force -Path $RulesDir | Out-Null
+if (Test-Path $SourceRulesDir) {
+    foreach ($rulesFile in (Get-ChildItem $SourceRulesDir -Filter "*.md" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name)) {
+        $SourceFile = [IO.Path]::Combine($SourceRulesDir, $rulesFile)
+        if (Test-Path $SourceFile) {
+            $content = [System.IO.File]::ReadAllText($SourceFile, [System.Text.Encoding]::UTF8)
+            Write-Utf8NoBom -Path ([IO.Path]::Combine($RulesDir, $rulesFile)) -Content $content
+        }
+    }
+    Write-Host "  出力品質ルール配置完了" -ForegroundColor Green
+}
 
 # ============================================================
 # 検証
